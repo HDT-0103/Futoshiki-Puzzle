@@ -1,0 +1,9 @@
+# Core (Python 3.7+)
+
+# Optional SAT/SMT / constraint solvers (uncomment if used)
+# python-sat[pblib,aiger]
+# z3-solver
+
+# Optional utilities (uncomment if used)
+# numpy
+
