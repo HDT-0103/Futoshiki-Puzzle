@@ -1,16 +1,13 @@
-"""
-Input parser for Futoshiki puzzle instances.
+"""Input parser for Futoshiki puzzle instances.
 
-This is intentionally a *template* because course/project variants often differ.
-The parser is designed to be strict about dimensions but flexible about tokens.
+Supported input styles:
+- Comma-separated (official assignment format)
+- Whitespace-separated
 
-Assumed format (common in assignments):
-1) N
-2) N lines of grid values (0 / . for empty)
-3) N lines of horizontal constraints between cells (N-1 tokens per line)
-4) N-1 lines of vertical constraints between cells (N tokens per line)
-
-If your provided inputs differ, adjust `parse_futoshiki_file`.
+Constraint encoding:
+- 0 = no constraint
+- 1 = less-than (left < right or top < bottom)
+- -1 = greater-than (left > right or top > bottom)
 """
 
 from __future__ import annotations
@@ -24,8 +21,8 @@ from typing import List, Sequence
 class FutoshikiInstance:
     n: int
     grid: List[List[int]]
-    h_constraints: List[List[str]]  # shape: n x (n-1)
-    v_constraints: List[List[str]]  # shape: (n-1) x n
+    h_constraints: List[List[int]]  # shape: n x (n-1), values in {-1, 0, 1}
+    v_constraints: List[List[int]]  # shape: (n-1) x n, values in {-1, 0, 1}
 
 
 def _tokenize_lines(text: str) -> List[List[str]]:
@@ -36,7 +33,11 @@ def _tokenize_lines(text: str) -> List[List[str]]:
             continue
         if s.startswith("#"):
             continue
-        lines.append(s.split())
+        if "," in s:
+            tokens = [tok.strip() for tok in s.split(",") if tok.strip()]
+        else:
+            tokens = s.split()
+        lines.append(tokens)
     return lines
 
 
@@ -44,6 +45,19 @@ def _parse_int(token: str) -> int:
     if token in {".", "_", "x", "X"}:
         return 0
     return int(token)
+
+
+def _parse_constraint_token(token: str) -> int:
+    mapping = {
+        "0": 0,
+        "1": 1,
+        "-1": -1,
+        "<": 1,
+        ">": -1,
+    }
+    if token not in mapping:
+        raise ValueError(f"Invalid constraint token: {token}")
+    return mapping[token]
 
 
 def _expect_shape(rows: Sequence[Sequence[str]], expected_rows: int, expected_cols: int, name: str) -> None:
@@ -76,12 +90,12 @@ def parse_futoshiki_file(path: Path) -> FutoshikiInstance:
 
     h_tokens = lines[idx : idx + n]
     _expect_shape(h_tokens, n, n - 1, "horizontal constraints")
-    h_constraints = [[tok for tok in row] for row in h_tokens]
+    h_constraints = [[_parse_constraint_token(tok) for tok in row] for row in h_tokens]
     idx += n
 
     v_tokens = lines[idx : idx + (n - 1)]
     _expect_shape(v_tokens, n - 1, n, "vertical constraints")
-    v_constraints = [[tok for tok in row] for row in v_tokens]
+    v_constraints = [[_parse_constraint_token(tok) for tok in row] for row in v_tokens]
     idx += n - 1
 
     if idx != len(lines):

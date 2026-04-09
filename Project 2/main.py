@@ -36,8 +36,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "-a",
         "--algorithm",
         required=True,
-        choices=["fc", "bc", "astar", "bt"],
-        help="Algorithm: fc (Forward Chaining), bc (Backward Chaining), astar (A*), bt (Backtracking).",
+        choices=["fc", "bc", "astar", "bt", "bf"],
+        help="Algorithm: fc (Forward Chaining), bc (Backward Chaining), astar (A*), bt (Backtracking), bf (Brute Force).",
     )
     parser.add_argument(
         "--debug",
@@ -70,12 +70,51 @@ def solve(instance, algorithm: str):
         from Source.solvers.backtracking import solve_bt
 
         return solve_bt(instance)
+    if algorithm == "bf":
+        from Source.solvers.bruteforce import solve_bf
+
+        return solve_bf(instance)
 
     raise ValueError(f"Unknown algorithm: {algorithm}")
 
 
-def format_solution_grid(grid) -> str:
-    return "\n".join(" ".join(str(v) for v in row) for row in grid) + "\n"
+def _h_symbol(sign: int) -> str:
+    if sign == 1:
+        return "<"
+    if sign == -1:
+        return ">"
+    return " "
+
+
+def _v_symbol(sign: int) -> str:
+    if sign == 1:
+        return "v"
+    if sign == -1:
+        return "^"
+    return " "
+
+
+def format_solution_grid(instance, grid) -> str:
+    lines = []
+    n = instance.n
+
+    for r in range(n):
+        row_parts = []
+        for c in range(n):
+            row_parts.append(str(grid[r][c]))
+            if c < n - 1:
+                row_parts.append(_h_symbol(instance.h_constraints[r][c]))
+        lines.append(" ".join(row_parts).rstrip())
+
+        if r < n - 1:
+            v_parts = []
+            for c in range(n):
+                v_parts.append(_v_symbol(instance.v_constraints[r][c]))
+                if c < n - 1:
+                    v_parts.append(" ")
+            lines.append(" ".join(v_parts).rstrip())
+
+    return "\n".join(lines) + "\n"
 
 
 def write_output(text: str, output_path: Optional[Path]) -> None:
@@ -96,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     solution = solve(instance, args.algorithm)
 
     # For now, solvers return a grid-like structure; adjust as your implementation evolves.
-    out_text = format_solution_grid(solution)
+    out_text = format_solution_grid(instance, solution)
     write_output(out_text, args.output)
     return 0
 
