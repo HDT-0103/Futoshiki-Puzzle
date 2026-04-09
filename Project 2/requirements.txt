@@ -1,9 +1,10 @@
-# Core (Python 3.7+)
+# Project 2 requirements
+# Recommended Python: 3.9+
 
-# Optional SAT/SMT / constraint solvers (uncomment if used)
-# python-sat[pblib,aiger]
-# z3-solver
+# Needed for chart generation in Source/utils/generate_charts.py
+matplotlib>=3.8
 
-# Optional utilities (uncomment if used)
-# numpy
+# Notes:
+# - Core solvers/parser use only Python standard library.
+# - tkinter GUI (if used) comes with standard CPython on Windows.
 

@@ -94,6 +94,66 @@ The output contains the solved grid while preserving inequality signs:
 - Horizontal: `<` and `>`
 - Vertical: `v` (top < bottom), `^` (top > bottom)
 
+## A* Heuristic Proof (Admissible + Consistent)
+We use:
+
+- State potential $U(s)$ = number of currently unassigned cells (domain size > 1).
+- Heuristic $h(s) = U(s)$.
+- Transition cost $c(s,s') = U(s) - U(s')$ after assigning one value and AC-3 style propagation (`reduce_domains`).
+
+Because propagation only shrinks domains, we have $U(s') < U(s)$ for every valid expansion, so
+$c(s,s') > 0$.
+
+### Admissible
+For any path $s = s_0 \to s_1 \to ... \to s_k = goal$:
+
+$$
+\sum_{i=0}^{k-1} c(s_i,s_{i+1})
+= \sum_{i=0}^{k-1} (U(s_i)-U(s_{i+1}))
+= U(s)-U(goal)
+= U(s)
+= h(s)
+$$
+
+So $h(s)$ equals the true remaining path cost under this cost model, therefore it is admissible.
+
+### Consistent
+For any edge $s \to s'$:
+
+$$
+h(s) = U(s) = (U(s)-U(s')) + U(s') = c(s,s') + h(s')
+$$
+
+Hence $h(s) \le c(s,s') + h(s')$ holds with equality for all transitions, so the heuristic is consistent.
+
+### Implementation Invariant Used by A*
+The solver keeps the invariant:
+
+$$
+g(s) = U(s_0) - U(s)
+$$
+
+where $s_0$ is the initial reduced state.
+So for each child $s'$ generated from $s$:
+
+$$
+g(s') = g(s) + c(s,s')
+$$
+
+and
+
+$$
+f(s) = g(s) + h(s) = U(s_0)
+$$
+
+which is constant over all reachable states under this model.
+
+### Where It Is Implemented
+- Heuristic $h(s)$: `_heuristic(domains)` in `Source/solvers/astar.py`.
+- AC-3 style propagation: `reduce_domains` in `Source/logic/constraints.py`.
+- A* cost model $c(s,s')$: `_progress_cost(parent, child)` in `Source/solvers/astar.py`.
+- Invariant check: `g2 = initial_u - child_u` and consistency guard in `Source/solvers/astar.py`.
+
 ## Files
 - `Source/main.py`: CLI entrypoint and output formatter
 - `Source/utils/parser.py`: parser for assignment input format

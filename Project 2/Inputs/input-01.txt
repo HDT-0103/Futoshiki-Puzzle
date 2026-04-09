@@ -1,15 +1,12 @@
 4
-# Grid: 0 means empty.
-2,0,0,0
-0,0,0,4
-4,0,0,0
-0,0,1,0
-# Horizontal constraints: 1 means <, -1 means >, 0 means none.
-1,1,-1
-1,1,1
--1,1,1
-1,-1,1
-# Vertical constraints: 1 means top < bottom, -1 means top > bottom.
--1,-1,-1,1
-1,-1,-1,-1
--1,1,-1,-1
+4,0,0,3
+1,0,3,0
+0,0,4,1
+3,4,0,0
+0,0,0
+0,1,1
+0,0,-1
+0,-1,0
+-1,0,0,1
+0,0,0,0
+0,0,0,0

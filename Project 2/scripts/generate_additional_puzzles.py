@@ -8,8 +8,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUTS_DIR = PROJECT_ROOT / "Inputs"
 
-# input-01.txt already exists. We generate input-02..input-10 with varied sizes.
+# Generate input-01..input-10 with varied sizes.
 PUZZLE_SPECS = [
+    (1, 4, 3),
     (2, 4, 7),
     (3, 5, 13),
     (4, 5, 29),
@@ -59,11 +60,9 @@ def build_puzzle(n: int, seed: int) -> tuple[list[list[int]], list[list[int]], l
 
 
 def write_input(path: Path, n: int, grid: list[list[int]], h: list[list[int]], v: list[list[int]]) -> None:
-    lines: list[str] = [str(n), "# Grid"]
+    lines: list[str] = [str(n)]
     lines.extend(",".join(str(x) for x in row) for row in grid)
-    lines.append("# Horizontal constraints")
     lines.extend(",".join(str(x) for x in row) for row in h)
-    lines.append("# Vertical constraints")
     lines.extend(",".join(str(x) for x in row) for row in v)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -75,7 +74,7 @@ def main() -> int:
         out_path = INPUTS_DIR / f"input-{idx:02d}.txt"
         write_input(out_path, n, grid, h, v)
 
-    print("Generated input-02.txt .. input-10.txt")
+    print("Generated input-01.txt .. input-10.txt")
     return 0
 
 

@@ -194,9 +194,5 @@ class FutoshikiCSP:
 
 
 def domains_unassigned_count(domains: Domains) -> int:
+    """Count cells that are not fixed yet (domain size > 1)."""
     return sum(1 for vals in domains.values() if len(vals) > 1)
-
-
-def domains_violation_lower_bound(csp: FutoshikiCSP, domains: Domains) -> int:
-    # Lower bound on required assignments: each unassigned cell needs at least one assignment.
-    return domains_unassigned_count(domains)
