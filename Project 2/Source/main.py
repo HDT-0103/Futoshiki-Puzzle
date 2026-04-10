@@ -55,9 +55,9 @@ def solve(instance, algorithm: str):
     depending on your team design.
     """
     if algorithm == "fc":
-        from Source.solvers.forward_chaining import solve_fc
+        from Source.solvers.forward_chaining import solve_dpll_instance
 
-        return solve_fc(instance)
+        return solve_dpll_instance(instance)
     if algorithm == "bc":
         from Source.solvers.backward_chaining import solve_bc
 
