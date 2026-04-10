@@ -33,11 +33,11 @@ def _tokenize_lines(text: str) -> List[List[str]]:
             continue
         if s.startswith("#"):
             continue
-        if "," in s:
-            tokens = [tok.strip() for tok in s.split(",") if tok.strip()]
-        else:
-            tokens = s.split()
-        lines.append(tokens)
+        s = s.replace(",", " ")
+        tokens = s.split()
+        
+        if tokens:
+            lines.append(tokens)
     return lines
 
 

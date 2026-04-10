@@ -1,4 +1,14 @@
-﻿
+﻿#!/usr/bin/env python3
+"""
+Futoshiki GUI v2 — with step-by-step solving animation.
+
+Features:
+- ▶ SOLVE: giải ra output ngay
+- ▶ STEP-BY-STEP: animation từng bước, giảng viên quan sát được
+- Speed slider: điều chỉnh tốc độ animation
+- Hiển thị ô đang xét (vàng), ô đã giải (xanh), ô backtrack (đỏ flash)
+"""
+
 from __future__ import annotations
 
 import os
@@ -9,131 +19,156 @@ import tracemalloc
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
+from queue import Queue, Empty
 
-# ── Fix import path ──────────────────────────────────────────
-# Cho phép chạy cả `python -m Source.gui` lẫn `python Source/gui.py`
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from Source.utils.parser import parse_futoshiki_file, FutoshikiInstance
 
-
 # ─────────────────────────────────────────────────────────────
-# Solver registry — mỗi solver là 1 hàm solve_xxx(instance) -> grid
-# Khi teammate implement xong solver nào, bỏ comment dòng tương ứng
+# Solver registry
 # ─────────────────────────────────────────────────────────────
 SOLVERS = {}
 
 
 def _register_solvers():
-    """
-    Đăng ký các solver có sẵn.
-    Nếu solver chưa implement (raise NotImplementedError), vẫn đăng ký
-    nhưng GUI sẽ bắt lỗi khi chạy.
-    """
     try:
         from Source.solvers.backtracking import solve_bt
         SOLVERS["Backtracking"] = solve_bt
     except ImportError:
         pass
-
     try:
         from Source.solvers.forward_chaining import solve_fc
         SOLVERS["Forward Chaining"] = solve_fc
     except ImportError:
         pass
-
     try:
         from Source.solvers.backward_chaining import solve_bc
         SOLVERS["Backward Chaining"] = solve_bc
     except ImportError:
         pass
-
     try:
         from Source.solvers.astar import solve_astar
         SOLVERS["A* Search"] = solve_astar
     except ImportError:
         pass
-
-    # Nếu chưa có solver nào hoạt động, thêm backtracking built-in để test GUI
     if not SOLVERS:
-        SOLVERS["Backtracking (built-in)"] = _builtin_backtracking
+        SOLVERS["Backtracking (built-in)"] = _builtin_bt
 
 
-def _builtin_backtracking(instance: FutoshikiInstance):
-    """
-    Backtracking solver tối giản — dùng để test GUI khi chưa có solver nào.
-    Trả về grid (list[list[int]]) hoặc None.
-    """
+def _builtin_bt(instance: FutoshikiInstance):
     n = instance.n
     grid = [row[:] for row in instance.grid]
-    h = instance.h_constraints
-    v = instance.v_constraints
-
+    h, v = instance.h_constraints, instance.v_constraints
     empty = [(i, j) for i in range(n) for j in range(n) if grid[i][j] == 0]
 
-    def _int(tok):
-        return int(tok)
-
-    def valid(r, c, val):
+    def ok(r, c, val):
         for k in range(n):
-            if k != c and grid[r][k] == val:
-                return False
-            if k != r and grid[k][c] == val:
-                return False
-        if c > 0 and grid[r][c - 1] != 0:
-            hv = _int(h[r][c - 1])
-            if hv == 1 and not (grid[r][c - 1] < val):
-                return False
-            if hv == -1 and not (grid[r][c - 1] > val):
-                return False
-        if c < n - 1 and grid[r][c + 1] != 0:
-            hv = _int(h[r][c])
-            if hv == 1 and not (val < grid[r][c + 1]):
-                return False
-            if hv == -1 and not (val > grid[r][c + 1]):
-                return False
-        if r > 0 and grid[r - 1][c] != 0:
-            vv = _int(v[r - 1][c])
-            if vv == 1 and not (grid[r - 1][c] < val):
-                return False
-            if vv == -1 and not (grid[r - 1][c] > val):
-                return False
-        if r < n - 1 and grid[r + 1][c] != 0:
-            vv = _int(v[r][c])
-            if vv == 1 and not (val < grid[r + 1][c]):
-                return False
-            if vv == -1 and not (val > grid[r + 1][c]):
-                return False
+            if k != c and grid[r][k] == val: return False
+            if k != r and grid[k][c] == val: return False
+        if c > 0 and grid[r][c-1] != 0:
+            if h[r][c-1] == 1 and not (grid[r][c-1] < val): return False
+            if h[r][c-1] == -1 and not (grid[r][c-1] > val): return False
+        if c < n-1 and grid[r][c+1] != 0:
+            if h[r][c] == 1 and not (val < grid[r][c+1]): return False
+            if h[r][c] == -1 and not (val > grid[r][c+1]): return False
+        if r > 0 and grid[r-1][c] != 0:
+            if v[r-1][c] == 1 and not (grid[r-1][c] < val): return False
+            if v[r-1][c] == -1 and not (grid[r-1][c] > val): return False
+        if r < n-1 and grid[r+1][c] != 0:
+            if v[r][c] == 1 and not (val < grid[r+1][c]): return False
+            if v[r][c] == -1 and not (val > grid[r+1][c]): return False
         return True
 
     def bt(idx):
-        if idx == len(empty):
-            return True
+        if idx == len(empty): return True
         r, c = empty[idx]
-        for val in range(1, n + 1):
-            if valid(r, c, val):
+        for val in range(1, n+1):
+            if ok(r, c, val):
                 grid[r][c] = val
-                if bt(idx + 1):
-                    return True
+                if bt(idx+1): return True
                 grid[r][c] = 0
         return False
 
     return [row[:] for row in grid] if bt(0) else None
 
 
+def _step_by_step_bt(instance: FutoshikiInstance, step_queue: Queue, stop_flag: list):
+    """
+    Backtracking solver that sends each step to a queue for animation.
+    
+    Step types pushed to queue:
+      ("try",    row, col, val)   — đang thử gán val cho (row,col)
+      ("set",    row, col, val)   — gán thành công
+      ("fail",   row, col, val)   — val không hợp lệ
+      ("undo",   row, col)        — backtrack, xóa ô
+      ("done",   grid)            — hoàn thành
+      ("nosoln",)                 — không có lời giải
+    """
+    n = instance.n
+    grid = [row[:] for row in instance.grid]
+    h, v = instance.h_constraints, instance.v_constraints
+    empty = [(i, j) for i in range(n) for j in range(n) if grid[i][j] == 0]
+
+    def ok(r, c, val):
+        for k in range(n):
+            if k != c and grid[r][k] == val: return False
+            if k != r and grid[k][c] == val: return False
+        if c > 0 and grid[r][c-1] != 0:
+            if h[r][c-1] == 1 and not (grid[r][c-1] < val): return False
+            if h[r][c-1] == -1 and not (grid[r][c-1] > val): return False
+        if c < n-1 and grid[r][c+1] != 0:
+            if h[r][c] == 1 and not (val < grid[r][c+1]): return False
+            if h[r][c] == -1 and not (val > grid[r][c+1]): return False
+        if r > 0 and grid[r-1][c] != 0:
+            if v[r-1][c] == 1 and not (grid[r-1][c] < val): return False
+            if v[r-1][c] == -1 and not (grid[r-1][c] > val): return False
+        if r < n-1 and grid[r+1][c] != 0:
+            if v[r][c] == 1 and not (val < grid[r+1][c]): return False
+            if v[r][c] == -1 and not (val > grid[r+1][c]): return False
+        return True
+
+    def bt(idx):
+        if stop_flag[0]:
+            return False
+        if idx == len(empty):
+            step_queue.put(("done", [row[:] for row in grid]))
+            return True
+        r, c = empty[idx]
+        for val in range(1, n+1):
+            if stop_flag[0]: return False
+            step_queue.put(("try", r, c, val))
+            if ok(r, c, val):
+                grid[r][c] = val
+                step_queue.put(("set", r, c, val))
+                if bt(idx + 1):
+                    return True
+                grid[r][c] = 0
+                step_queue.put(("undo", r, c))
+            else:
+                step_queue.put(("fail", r, c, val))
+        return False
+
+    if not bt(0) and not stop_flag[0]:
+        step_queue.put(("nosoln",))
+
+
 # ─────────────────────────────────────────────────────────────
-# Color scheme
+# Colors
 # ─────────────────────────────────────────────────────────────
 C_BG         = "#0f1117"
 C_PANEL      = "#1a1d2e"
 C_CELL       = "#252840"
 C_GIVEN      = "#3b2d66"
 C_SOLVED     = "#1a4d38"
+C_TRYING     = "#5a4a1a"     # vàng đậm — đang thử
+C_FAIL       = "#5a1a1a"     # đỏ đậm — fail
 C_NUM        = "#dddaf0"
 C_GIVEN_NUM  = "#c9a6ff"
 C_SOLVED_NUM = "#6fffaa"
+C_TRY_NUM    = "#ffd866"     # vàng — số đang thử
 C_SIGN       = "#ff5c5c"
 C_LABEL      = "#8884a5"
 C_TITLE      = "#ffffff"
@@ -141,31 +176,39 @@ C_ACCENT     = "#6e4fbf"
 C_ACCENT_H   = "#8b6fe0"
 C_GREEN      = "#27ae60"
 C_GREEN_H    = "#2ecc71"
+C_ORANGE     = "#e67e22"
+C_ORANGE_H   = "#f39c12"
 C_BORDER     = "#363a62"
 C_ERR        = "#ff5c5c"
 C_WARN       = "#f0a030"
 
 
 # ─────────────────────────────────────────────────────────────
-# Main GUI class
+# GUI
 # ─────────────────────────────────────────────────────────────
 class FutoshikiGUI:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Futoshiki Solver")
         self.root.configure(bg=C_BG)
-        self.root.minsize(960, 640)
+        self.root.minsize(1060, 680)
 
         self.instance: FutoshikiInstance | None = None
         self.solution_grid: list[list[int]] | None = None
         self.current_path: Path | None = None
 
+        # Step-by-step state
+        self.anim_grid: list[list[int]] | None = None
+        self.anim_highlight: dict = {}     # (row,col) -> color
+        self.anim_running = False
+        self.anim_stop = [False]
+        self.step_queue: Queue | None = None
+        self.step_count = 0
+
         self._build()
         _register_solvers()
 
-    # ── Build UI ─────────────────────────────────────────────
     def _build(self):
-        # Title
         hdr = tk.Frame(self.root, bg=C_BG)
         hdr.pack(fill="x", padx=24, pady=(16, 4))
         tk.Label(hdr, text="FUTOSHIKI", font=("Consolas", 22, "bold"),
@@ -176,26 +219,22 @@ class FutoshikiGUI:
         body = tk.Frame(self.root, bg=C_BG)
         body.pack(fill="both", expand=True, padx=24, pady=8)
 
-        # Left panel
-        left = tk.Frame(body, bg=C_PANEL, width=230)
+        left = tk.Frame(body, bg=C_PANEL, width=250)
         left.pack(side="left", fill="y", padx=(0, 8))
         left.pack_propagate(False)
         self._build_left(left)
 
-        # Center canvas
         mid = tk.Frame(body, bg=C_BG)
         mid.pack(side="left", fill="both", expand=True)
         self.canvas = tk.Canvas(mid, bg=C_BG, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", lambda _: self._draw())
 
-        # Right panel
         right = tk.Frame(body, bg=C_PANEL, width=230)
         right.pack(side="right", fill="y", padx=(8, 0))
         right.pack_propagate(False)
         self._build_right(right)
 
-        # Status bar
         self.status = tk.StringVar(value="Load một file input để bắt đầu.")
         tk.Label(self.root, textvariable=self.status, font=("Consolas", 9),
                  fg=C_LABEL, bg=C_PANEL, anchor="w", padx=12, pady=4
@@ -205,18 +244,16 @@ class FutoshikiGUI:
         tk.Label(p, text="CONTROLS", font=("Consolas", 10, "bold"),
                  fg=C_TITLE, bg=C_PANEL).pack(pady=(14, 8))
 
-        # File
         tk.Label(p, text="Input file", font=("Consolas", 9),
                  fg=C_LABEL, bg=C_PANEL, anchor="w").pack(fill="x", padx=14)
         self.file_var = tk.StringVar(value="(chưa chọn)")
         tk.Label(p, textvariable=self.file_var, font=("Consolas", 9),
-                 fg=C_ACCENT_H, bg=C_PANEL, anchor="w", wraplength=200
+                 fg=C_ACCENT_H, bg=C_PANEL, anchor="w", wraplength=220
                  ).pack(fill="x", padx=14)
         self._btn(p, "Browse…", self._browse, C_ACCENT)
 
-        ttk.Separator(p).pack(fill="x", padx=14, pady=10)
+        ttk.Separator(p).pack(fill="x", padx=14, pady=8)
 
-        # Algorithm
         tk.Label(p, text="Algorithm", font=("Consolas", 9),
                  fg=C_LABEL, bg=C_PANEL, anchor="w").pack(fill="x", padx=14)
         self.algo_var = tk.StringVar()
@@ -224,10 +261,34 @@ class FutoshikiGUI:
         self._algo_frame.pack(fill="x", padx=14)
         self.root.after(100, self._rebuild_algo_radios)
 
-        ttk.Separator(p).pack(fill="x", padx=14, pady=10)
+        ttk.Separator(p).pack(fill="x", padx=14, pady=8)
 
-        # Buttons
+        # Solve buttons
         self._btn(p, "▶  SOLVE", self._solve, C_GREEN)
+        self.step_btn = self._btn(p, "⏩  STEP-BY-STEP", self._solve_step, C_ORANGE)
+        self.stop_btn = self._btn(p, "⏹  STOP", self._stop_anim, C_ERR)
+
+        ttk.Separator(p).pack(fill="x", padx=14, pady=8)
+
+        # Speed control
+        tk.Label(p, text="Animation speed", font=("Consolas", 9),
+                 fg=C_LABEL, bg=C_PANEL, anchor="w").pack(fill="x", padx=14)
+
+        speed_frame = tk.Frame(p, bg=C_PANEL)
+        speed_frame.pack(fill="x", padx=14)
+        tk.Label(speed_frame, text="Slow", font=("Consolas", 8),
+                 fg=C_LABEL, bg=C_PANEL).pack(side="left")
+        self.speed_var = tk.IntVar(value=85)
+        tk.Scale(speed_frame, from_=0, to=100, orient="horizontal",
+                 variable=self.speed_var, showvalue=False,
+                 bg=C_PANEL, fg=C_NUM, troughcolor=C_CELL,
+                 highlightthickness=0, length=120
+                 ).pack(side="left", fill="x", expand=True, padx=4)
+        tk.Label(speed_frame, text="Fast", font=("Consolas", 8),
+                 fg=C_LABEL, bg=C_PANEL).pack(side="left")
+
+        ttk.Separator(p).pack(fill="x", padx=14, pady=8)
+
         self._btn(p, "⟲  Reset", self._reset, C_ACCENT)
         self._btn(p, "💾  Save output", self._save, C_ACCENT)
 
@@ -255,7 +316,7 @@ class FutoshikiGUI:
             ("size",       "Grid size"),
             ("time",       "Time (s)"),
             ("memory",     "Peak mem (KB)"),
-            ("expansions", "Nodes / steps"),
+            ("expansions", "Steps"),
         ]:
             f = tk.Frame(p, bg=C_PANEL)
             f.pack(fill="x", padx=14, pady=3)
@@ -279,19 +340,20 @@ class FutoshikiGUI:
                       font=("Consolas", 10, "bold"), fg="#fff", bg=color,
                       activebackground=color, activeforeground="#fff",
                       relief="flat", cursor="hand2", pady=5)
-        b.pack(fill="x", padx=14, pady=4)
-        lighter = C_ACCENT_H if color == C_ACCENT else C_GREEN_H
+        b.pack(fill="x", padx=14, pady=3)
+        orig = color
+        lighter = {C_ACCENT: C_ACCENT_H, C_GREEN: C_GREEN_H,
+                   C_ORANGE: C_ORANGE_H, C_ERR: "#ff7777"}.get(color, color)
         b.bind("<Enter>", lambda _: b.config(bg=lighter))
-        b.bind("<Leave>", lambda _: b.config(bg=color))
+        b.bind("<Leave>", lambda _: b.config(bg=orig))
         return b
 
-    # ── Stat helpers ─────────────────────────────────────────
+    # ── Stats ────────────────────────────────────────────────
     def _set_stat(self, key, val, color=None):
         lbl = self._stats.get(key)
         if lbl:
             lbl.config(text=str(val))
-            if color:
-                lbl.config(fg=color)
+            if color: lbl.config(fg=color)
 
     def _clear_stats(self):
         for lbl in self._stats.values():
@@ -306,97 +368,112 @@ class FutoshikiGUI:
         c.delete("all")
 
         if self.instance is None:
-            c.create_text(c.winfo_width() // 2, c.winfo_height() // 2,
+            c.create_text(c.winfo_width()//2, c.winfo_height()//2,
                           text="Load a puzzle to display",
                           font=("Consolas", 14), fill=C_LABEL)
             return
 
         n = self.instance.n
-        show = self.solution_grid if self.solution_grid else self.instance.grid
+        # Determine which grid to show
+        if self.anim_grid:
+            show = self.anim_grid
+        elif self.solution_grid:
+            show = self.solution_grid
+        else:
+            show = self.instance.grid
 
         cw, ch = c.winfo_width(), c.winfo_height()
         gap = 24
-        max_cell = 64
-        cell = min((cw - 40 - (n - 1) * gap) / n,
-                   (ch - 40 - (n - 1) * gap) / n,
-                   max_cell)
+        cell = min((cw - 40 - (n-1)*gap) / n,
+                   (ch - 40 - (n-1)*gap) / n, 64)
         cell = max(cell, 28)
 
-        gw = n * cell + (n - 1) * gap
-        gh = n * cell + (n - 1) * gap
+        gw = n*cell + (n-1)*gap
+        gh = n*cell + (n-1)*gap
         ox = (cw - gw) / 2
         oy = (ch - gh) / 2
 
         for i in range(n):
             for j in range(n):
-                x = ox + j * (cell + gap)
-                y = oy + i * (cell + gap)
+                x = ox + j*(cell+gap)
+                y = oy + i*(cell+gap)
                 val = show[i][j]
                 given = self.instance.grid[i][j] != 0
                 solved = (self.solution_grid is not None
                           and not given and val != 0)
 
-                bg = C_GIVEN if given else (C_SOLVED if solved else C_CELL)
-                c.create_rectangle(x, y, x + cell, y + cell,
+                # Cell background — check animation highlight
+                if (i, j) in self.anim_highlight:
+                    bg = self.anim_highlight[(i, j)]
+                elif given:
+                    bg = C_GIVEN
+                elif solved or (self.anim_grid and val != 0 and not given):
+                    bg = C_SOLVED
+                else:
+                    bg = C_CELL
+
+                c.create_rectangle(x, y, x+cell, y+cell,
                                    fill=bg, outline=C_BORDER, width=2)
 
                 if val != 0:
-                    fg = C_GIVEN_NUM if given else (C_SOLVED_NUM if solved else C_NUM)
-                    fs = max(int(cell * 0.44), 12)
-                    c.create_text(x + cell / 2, y + cell / 2,
+                    if (i, j) in self.anim_highlight:
+                        fg = C_TRY_NUM
+                    elif given:
+                        fg = C_GIVEN_NUM
+                    elif solved or (self.anim_grid and not given):
+                        fg = C_SOLVED_NUM
+                    else:
+                        fg = C_NUM
+                    fs = max(int(cell*0.44), 12)
+                    c.create_text(x+cell/2, y+cell/2,
                                   text=str(val), font=("Consolas", fs, "bold"), fill=fg)
 
                 # Horizontal sign
-                if j < n - 1:
+                if j < n-1:
                     sign = self._h_sign(self.instance.h_constraints[i][j])
                     if sign:
-                        c.create_text(x + cell + gap / 2, y + cell / 2,
-                                      text=sign,
-                                      font=("Consolas", max(int(gap * 0.65), 13), "bold"),
+                        c.create_text(x+cell+gap/2, y+cell/2, text=sign,
+                                      font=("Consolas", max(int(gap*0.65), 13), "bold"),
                                       fill=C_SIGN)
 
                 # Vertical sign
-                if i < n - 1:
+                if i < n-1:
                     sign = self._v_sign(self.instance.v_constraints[i][j])
                     if sign:
-                        c.create_text(x + cell / 2, y + cell + gap / 2,
-                                      text=sign,
-                                      font=("Consolas", max(int(gap * 0.65), 13), "bold"),
+                        c.create_text(x+cell/2, y+cell+gap/2, text=sign,
+                                      font=("Consolas", max(int(gap*0.65), 13), "bold"),
                                       fill=C_SIGN)
 
     @staticmethod
-    def _h_sign(tok: str) -> str | None:
-        if tok in ("1", "<"):
-            return "<"
-        if tok in ("-1", ">"):
-            return ">"
+    def _h_sign(val) -> str | None:
+        v = int(val) if not isinstance(val, int) else val
+        if v == 1: return "<"
+        if v == -1: return ">"
         return None
 
     @staticmethod
-    def _v_sign(tok: str) -> str | None:
-        # Theo Figure 1 đề bài:
-        # -1 = top > bottom → "∨" (mũi xuống, chỉ về phía giá trị nhỏ hơn)
-        # 1  = top < bottom → "∧" (mũi lên, chỉ về phía giá trị nhỏ hơn)
-        if tok in ("-1", ">"):
-            return "∨"
-        if tok in ("1", "<"):
-            return "∧"
+    def _v_sign(val) -> str | None:
+        v = int(val) if not isinstance(val, int) else val
+        if v == -1: return "∨"    # top > bottom
+        if v == 1:  return "∧"    # top < bottom
         return None
 
     # ── Actions ──────────────────────────────────────────────
     def _browse(self):
-        init_dir = _PROJECT_ROOT / "Inputs"
-        if not init_dir.exists():
-            init_dir = _PROJECT_ROOT
-        fp = filedialog.askopenfilename(
-            title="Chọn file input Futoshiki",
-            initialdir=str(init_dir),
-            filetypes=[("Text", "*.txt"), ("All", "*.*")])
-        if not fp:
+        if self.anim_running:
+            messagebox.showwarning("Busy", "Đang chạy animation, nhấn STOP trước!")
             return
+        init_dir = _PROJECT_ROOT / "Inputs"
+        if not init_dir.exists(): init_dir = _PROJECT_ROOT
+        fp = filedialog.askopenfilename(
+            title="Chọn file input", initialdir=str(init_dir),
+            filetypes=[("Text", "*.txt"), ("All", "*.*")])
+        if not fp: return
         try:
             self.instance = parse_futoshiki_file(Path(fp))
             self.solution_grid = None
+            self.anim_grid = None
+            self.anim_highlight = {}
             self.current_path = Path(fp)
             self.file_var.set(Path(fp).name)
             self._clear_stats()
@@ -407,17 +484,23 @@ class FutoshikiGUI:
         except Exception as e:
             messagebox.showerror("Parse error", str(e))
 
+    # ── Instant solve ────────────────────────────────────────
     def _solve(self):
         if self.instance is None:
             messagebox.showwarning("No puzzle", "Chọn file input trước!")
             return
+        if self.anim_running:
+            messagebox.showwarning("Busy", "Đang chạy animation, nhấn STOP trước!")
+            return
 
         algo_name = self.algo_var.get()
         solver_fn = SOLVERS.get(algo_name)
-        if solver_fn is None:
+        if not solver_fn:
             messagebox.showerror("Error", f"Solver '{algo_name}' không tìm thấy.")
             return
 
+        self.anim_grid = None
+        self.anim_highlight = {}
         self._set_stat("status", "Solving…", C_WARN)
         self._set_stat("algorithm", algo_name)
         self.status.set(f"Đang giải bằng {algo_name}…")
@@ -431,8 +514,7 @@ class FutoshikiGUI:
                 elapsed = time.perf_counter() - t0
                 _, peak = tracemalloc.get_traced_memory()
                 tracemalloc.stop()
-
-                stats = {"time": round(elapsed, 4), "memory": round(peak / 1024, 2)}
+                stats = {"time": round(elapsed, 4), "memory": round(peak/1024, 2)}
 
                 if result is None:
                     self.root.after(0, self._on_no_solution)
@@ -442,7 +524,6 @@ class FutoshikiGUI:
                     self.root.after(0, lambda: self._on_solved(result.grid, stats))
                 else:
                     self.root.after(0, lambda: self._on_solved(result, stats))
-
             except NotImplementedError as e:
                 self.root.after(0, lambda: self._on_not_impl(str(e)))
             except Exception as e:
@@ -457,30 +538,7 @@ class FutoshikiGUI:
         self._set_stat("memory", stats.get("memory", "—"))
         self._set_stat("expansions", stats.get("expansions", "—"))
         self._draw()
-
-        # Build output preview
-        n = self.instance.n
-        lines = []
-        for i in range(n):
-            parts = []
-            for j in range(n):
-                parts.append(str(grid[i][j]))
-                if j < n - 1:
-                    s = self._h_sign(self.instance.h_constraints[i][j])
-                    parts.append(s if s else " ")
-            lines.append(" ".join(parts))
-            if i < n - 1:
-                vp = []
-                for j in range(n):
-                    s = self._v_sign(self.instance.v_constraints[i][j])
-                    vp.append(s if s else " ")
-                lines.append("    ".join(vp))
-        out = "\n".join(lines)
-
-        self.out_text.config(state="normal")
-        self.out_text.delete("1.0", "end")
-        self.out_text.insert("1.0", out)
-        self.out_text.config(state="disabled")
+        self._update_output_preview(grid)
         self.status.set(f"Solved in {stats.get('time', '?')}s")
 
     def _on_no_solution(self):
@@ -497,8 +555,145 @@ class FutoshikiGUI:
         self.status.set(f"Error: {msg}")
         messagebox.showerror("Solver error", msg)
 
-    def _reset(self):
+    # ── Step-by-step solve ───────────────────────────────────
+    def _solve_step(self):
+        if self.instance is None:
+            messagebox.showwarning("No puzzle", "Chọn file input trước!")
+            return
+        if self.anim_running:
+            messagebox.showwarning("Busy", "Đang chạy animation rồi!")
+            return
+
+        self.anim_running = True
+        self.anim_stop = [False]
+        self.anim_grid = [row[:] for row in self.instance.grid]
+        self.anim_highlight = {}
         self.solution_grid = None
+        self.step_count = 0
+        self.step_queue = Queue()
+
+        self._set_stat("status", "Step-by-step…", C_WARN)
+        self._set_stat("algorithm", "Backtracking (animated)")
+        self._set_stat("expansions", "0")
+        self.status.set("Animation đang chạy… Nhấn STOP để dừng.")
+
+        # Run solver in background thread
+        threading.Thread(
+            target=_step_by_step_bt,
+            args=(self.instance, self.step_queue, self.anim_stop),
+            daemon=True
+        ).start()
+
+        # Start polling queue
+        self._poll_steps()
+
+    def _poll_steps(self):
+        """Process steps from queue and update GUI."""
+        if not self.anim_running:
+            return
+
+        # Calculate delay from speed slider (0=slow 500ms, 100=fast 1ms)
+        speed = self.speed_var.get()
+        delay = max(1, int(500 * (1 - speed / 100) ** 2))
+
+        batch = 0
+        max_batch = max(1, speed // 20)  # Process more steps at high speed
+
+        while batch < max_batch:
+            try:
+                step = self.step_queue.get_nowait()
+            except Empty:
+                break
+
+            batch += 1
+            kind = step[0]
+
+            if kind == "try":
+                _, r, c, val = step
+                self.step_count += 1
+                self.anim_grid[r][c] = val
+                self.anim_highlight = {(r, c): C_TRYING}
+                self._set_stat("expansions", str(self.step_count))
+
+            elif kind == "set":
+                _, r, c, val = step
+                self.anim_grid[r][c] = val
+                self.anim_highlight = {(r, c): C_SOLVED}
+
+            elif kind == "fail":
+                _, r, c, val = step
+                self.anim_grid[r][c] = 0
+                self.anim_highlight = {(r, c): C_FAIL}
+
+            elif kind == "undo":
+                _, r, c = step
+                self.anim_grid[r][c] = 0
+                self.anim_highlight = {(r, c): C_FAIL}
+
+            elif kind == "done":
+                grid = step[1]
+                self.solution_grid = grid
+                self.anim_grid = None
+                self.anim_highlight = {}
+                self.anim_running = False
+                self._set_stat("status", "Solved ✓", C_SOLVED_NUM)
+                self._draw()
+                self._update_output_preview(grid)
+                self.status.set(f"Step-by-step hoàn tất! {self.step_count} steps.")
+                return
+
+            elif kind == "nosoln":
+                self.anim_running = False
+                self.anim_grid = None
+                self.anim_highlight = {}
+                self._set_stat("status", "No solution!", C_ERR)
+                self._draw()
+                self.status.set("Không tìm được lời giải.")
+                return
+
+        self._draw()
+        self.root.after(delay, self._poll_steps)
+
+    def _stop_anim(self):
+        if self.anim_running:
+            self.anim_stop[0] = True
+            self.anim_running = False
+            self.anim_grid = None
+            self.anim_highlight = {}
+            self._set_stat("status", "Stopped", C_WARN)
+            self._draw()
+            self.status.set("Animation đã dừng.")
+
+    # ── Helpers ──────────────────────────────────────────────
+    def _update_output_preview(self, grid):
+        n = self.instance.n
+        lines = []
+        for i in range(n):
+            parts = []
+            for j in range(n):
+                parts.append(str(grid[i][j]))
+                if j < n-1:
+                    s = self._h_sign(self.instance.h_constraints[i][j])
+                    parts.append(s if s else " ")
+            lines.append(" ".join(parts))
+            if i < n-1:
+                vp = []
+                for j in range(n):
+                    s = self._v_sign(self.instance.v_constraints[i][j])
+                    vp.append(s if s else " ")
+                lines.append("    ".join(vp))
+
+        self.out_text.config(state="normal")
+        self.out_text.delete("1.0", "end")
+        self.out_text.insert("1.0", "\n".join(lines))
+        self.out_text.config(state="disabled")
+
+    def _reset(self):
+        if self.anim_running:
+            self._stop_anim()
+        self.solution_grid = None
+        self.anim_grid = None
+        self.anim_highlight = {}
         self._clear_stats()
         if self.instance:
             self._set_stat("size", f"{self.instance.n} × {self.instance.n}")
@@ -514,18 +709,16 @@ class FutoshikiGUI:
         fp = filedialog.asksaveasfilename(
             title="Save output", initialdir=str(init_dir),
             defaultextension=".txt", filetypes=[("Text", "*.txt")])
-        if not fp:
-            return
+        if not fp: return
         with open(fp, "w", encoding="utf-8") as f:
             for row in self.solution_grid:
                 f.write(" ".join(str(v) for v in row) + "\n")
         self.status.set(f"Saved: {fp}")
 
 
-# ─────────────────────────────────────────────────────────────
 def main():
     root = tk.Tk()
-    root.geometry("1000x660")
+    root.geometry("1060x700")
     FutoshikiGUI(root)
     root.mainloop()
 
