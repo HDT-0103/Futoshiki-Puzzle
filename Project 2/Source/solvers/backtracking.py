@@ -18,6 +18,8 @@ def solve_bt(instance: FutoshikiInstance):
     v = instance.v_constraints       # List[List[int]]
 
     empty = [(i, j) for i in range(n) for j in range(n) if grid[i][j] == 0]
+    steps = [0]
+    logs = []
 
     def valid(r, c, val):
         # Row & column uniqueness
@@ -58,13 +60,18 @@ def solve_bt(instance: FutoshikiInstance):
             return True
         r, c = empty[idx]
         for val in range(1, n + 1):
+            steps[0] += 1
+            logs.append(f"Try ({r+1},{c+1}) = {val}")
             if valid(r, c, val):
                 grid[r][c] = val
+                logs.append(f"  SET ({r+1},{c+1}) = {val}")
                 if backtrack(idx + 1):
                     return True
                 grid[r][c] = 0
+                logs.append(f"  UNDO ({r+1},{c+1})")
+            else:
+                logs.append(f"  FAIL ({r+1},{c+1}) = {val}")
         return False
 
-    if backtrack(0):
-        return [row[:] for row in grid]
-    return None
+    result_grid = [row[:] for row in grid] if backtrack(0) else None
+    return result_grid, steps[0], logs

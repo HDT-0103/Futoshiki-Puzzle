@@ -3,6 +3,7 @@
 
 # Needed for chart generation in Source/utils/generate_charts.py
 matplotlib>=3.8
+matplotlib
 
 # Notes:
 # - Core solvers/parser use only Python standard library.
