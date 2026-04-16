@@ -28,15 +28,10 @@ Both comma-separated and whitespace-separated formats are supported.
 From the project root:
 
 ```bash
-python -m Source.main Inputs/input-01.txt -a bt -o Outputs/output-01.txt
+python main.py
 ```
 
-Available algorithms (`-a`):
-- `fc`
-- `bc`
-- `astar`
-- `bt`
-- `bf`
+This opens the GUI. Choose puzzle file and algorithm inside the interface.
 
 ## Generate Additional Inputs
 Generate `input-02.txt` to `input-10.txt` (sizes: 4x4, 5x5, 6x6, 7x7, 9x9):
@@ -155,14 +150,15 @@ which is constant over all reachable states under this model.
 - Invariant check: `g2 = initial_u - child_u` and consistency guard in `Source/solvers/astar.py`.
 
 ## Files
-- `Source/main.py`: CLI entrypoint and output formatter
+- `main.py`: single project entrypoint (opens GUI)
+- `Source/gui/gui.py`: GUI implementation
 - `Source/utils/parser.py`: parser for assignment input format
 - `Source/logic/constraints.py`: shared CSP constraints and propagation
 - `Source/logic/stats.py`: solver statistics counters for benchmarking
 - `Source/logic/kb.py`: grounded KB and CNF-style clause generation
 - `Source/solvers/`: all solver implementations
 - `scripts/generate_additional_puzzles.py`: auto-generate 9 additional valid puzzles
-- `util/benchmark.py`: unified benchmark runner (run, summary, charts, all)
+- `Source/utils/benchmark.py`: unified benchmark runner (run, summary, all)
 - `assets/benchmark/`: benchmark chart assets for the report
 - `Report_Skeleton.md`: report template with FOL/CNF/experiment sections
 
