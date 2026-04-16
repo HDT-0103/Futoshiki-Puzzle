@@ -45,6 +45,7 @@ class BackwardChainingEngine:
         self.v = instance.v_constraints      # List[List[int]]
         self.kb = KnowledgeBase()
         self.stats = {"expansions": 0, "inferences": 0}
+        self.logs = []
         self._build_kb()
 
     def _build_kb(self):
@@ -158,13 +159,6 @@ class BackwardChainingEngine:
     # ── SLD Resolution search ────────────────────────────────
 
     def _resolve(self, idx: int, goals: list[tuple[int, int]]) -> bool:
-        """
-        Depth-first SLD resolution over empty cells.
-        
-        For each cell (goal), try values 1..N:
-        - If _prove_val succeeds: ASSERT Val(i,j,v), recurse
-        - If recursion fails: RETRACT Val(i,j,v), try next value
-        """
         if idx == len(goals):
             return True
 
@@ -172,17 +166,20 @@ class BackwardChainingEngine:
         self.stats["expansions"] += 1
 
         for val in range(1, self.n + 1):
+            self.logs.append(f"Query Val({row+1},{col+1},{val})")
             if self._prove_val(row, col, val):
-                # Assert derived fact
                 self.grid[row][col] = val
                 self.kb.add(f"Val({row},{col},{val})")
+                self.logs.append(f"  ASSERT Val({row+1},{col+1},{val})")
 
                 if self._resolve(idx + 1, goals):
                     return True
 
-                # Retract on failure
                 self.grid[row][col] = 0
                 self.kb.remove(f"Val({row},{col},{val})")
+                self.logs.append(f"  RETRACT Val({row+1},{col+1},{val})")
+            else:
+                self.logs.append(f"  FAIL Val({row+1},{col+1},{val})")
 
         return False
 
@@ -206,4 +203,5 @@ def solve_bc(instance: FutoshikiInstance):
     Returns solved grid (list[list[int]]) or None.
     """
     engine = BackwardChainingEngine(instance)
-    return engine.solve()
+    grid = engine.solve()
+    return grid, engine.stats["expansions"], engine.logs

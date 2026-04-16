@@ -38,13 +38,19 @@ def _heuristic(domains: Domains) -> int:
 
 
 def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None) -> List[List[int]]:
+    if stats is None:
+        stats = SolverStats()
+        
     if stats is not None:
         stats.algorithm = "astar"
 
+    logs = []
     csp = FutoshikiCSP(instance, stats=stats)
     initial = csp.initial_domains()
     if not csp.reduce_domains(initial):
-        raise ValueError("Initial state is inconsistent.")
+        #raise ValueError("Initial state is inconsistent.")
+        logs.append("Initial state is inconsistent.")
+        return None, 0, logs
 
     initial_sig = _state_signature(csp, initial)
     initial_u = _unassigned_count(initial)
@@ -62,6 +68,7 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
             stats.nodes_expanded += 1
 
         current = heapq.heappop(frontier)
+        logs.append(f"Expand node #{stats.nodes_expanded}, f={current.f}, g={current.g}, h={current.h}")
         sig = _state_signature(csp, current.domains)
 
         # Skip stale queue entries that are dominated by a better discovered path.
@@ -69,7 +76,9 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
             continue
 
         if csp.all_constraints_satisfied(current.domains):
-            return csp.to_grid(current.domains)
+            logs.append(f"Solution found at node #{stats.nodes_expanded}")
+            return csp.to_grid(current.domains), stats.nodes_expanded, logs
+
 
         cell = csp.choose_unassigned_cell(current.domains)
         if cell is None:
@@ -78,9 +87,11 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
         for value in sorted(current.domains[cell]):
             if stats is not None:
                 stats.assignments_tried += 1
+            logs.append(f"  Try {cell} = {value}")
             child = csp.copy_domains(current.domains)
             child[cell] = {value}
             if not csp.reduce_domains(child):
+                logs.append(f"    Pruned (arc inconsistent)")
                 continue
 
             child_u = _unassigned_count(child)
@@ -104,4 +115,4 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
             counter += 1
             heapq.heappush(frontier, PriorityState(f=g2 + h2, h=h2, g=g2, tie=counter, domains=child))
 
-    raise ValueError("No solution found with A*.")
+    return None, stats.nodes_expanded, logs

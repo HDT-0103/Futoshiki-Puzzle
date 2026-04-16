@@ -1,7 +1,7 @@
-"""
+ï»¿"""
 Brute-force solver for Futoshiki.
 Tries all row permutations, checks column uniqueness and constraints.
-Much slower than backtracking — used as baseline for performance comparison.
+Slower than backtracking. Used as baseline for performance comparison.
 """
 
 from __future__ import annotations
@@ -19,8 +19,10 @@ def solve_bf(instance: FutoshikiInstance):
     h = instance.h_constraints
     v = instance.v_constraints
 
+    steps = [0]
+    logs = []
+
     def check_constraints(g):
-        """Check all inequality constraints on a fully filled grid."""
         for i in range(n):
             for j in range(n - 1):
                 if h[i][j] == 1 and not (g[i][j] < g[i][j + 1]):
@@ -36,7 +38,6 @@ def solve_bf(instance: FutoshikiInstance):
         return True
 
     def check_cols(g, up_to):
-        """Check column uniqueness up to given row index."""
         for j in range(n):
             seen = set()
             for i in range(up_to + 1):
@@ -46,7 +47,6 @@ def solve_bf(instance: FutoshikiInstance):
         return True
 
     def row_perms(row_idx):
-        """Generate all valid permutations for a row respecting given cells."""
         fixed = {j: grid[row_idx][j] for j in range(n) if grid[row_idx][j] != 0}
         used = set(fixed.values())
         free = [j for j in range(n) if grid[row_idx][j] == 0]
@@ -65,13 +65,18 @@ def solve_bf(instance: FutoshikiInstance):
         if row_idx == n:
             return check_constraints(grid)
         for perm in all_perms[row_idx]:
+            steps[0] += 1
             grid[row_idx] = perm[:]
+            logs.append(f"Try row {row_idx+1}: {perm}")
             if check_cols(grid, row_idx):
+                logs.append(f"  Columns OK, go deeper")
                 if solve_row(row_idx + 1):
                     return True
+                logs.append(f"  Backtrack row {row_idx+1}")
+            else:
+                logs.append(f"  Column conflict at row {row_idx+1}")
         grid[row_idx] = [0] * n
         return False
 
-    if solve_row(0):
-        return [row[:] for row in grid]
-    return None
+    result_grid = [row[:] for row in grid] if solve_row(0) else None
+    return result_grid, steps[0], logs
