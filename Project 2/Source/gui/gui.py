@@ -1,11 +1,4 @@
-﻿#!/usr/bin/env python3
-"""
-Futoshiki Solver — v7
-Balanced layout: left controls | center grid | right stats+chart
-Chart has metric selector tabs (Time / Memory / Steps)
-"""
-
-from __future__ import annotations
+﻿from __future__ import annotations
 import sys, time, threading, tracemalloc
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox

@@ -204,4 +204,8 @@ def solve_bc(instance: FutoshikiInstance):
     """
     engine = BackwardChainingEngine(instance)
     grid = engine.solve()
-    return grid, engine.stats["expansions"], engine.logs
+    metrics = {
+        "inferences": engine.stats["inferences"],
+        "expansions": engine.stats["expansions"],
+    }
+    return grid, metrics, engine.logs

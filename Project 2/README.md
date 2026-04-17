@@ -44,44 +44,52 @@ python scripts/generate_additional_puzzles.py
 Run all algorithms on all input files and export metrics:
 
 ```bash
-python util/benchmark.py run --benchmark-csv Outputs/benchmark_results.csv
+python Source/utils/benchmark.py run --benchmark-csv Source/assets/benchmark/benchmark_result.csv
+```
+
+Run exactly the assignment test set (`input-01.txt` to `input-10.txt`) with one command:
+
+```bash
+python Source/utils/benchmark.py run10 --benchmark-csv Source/assets/benchmark/benchmark_result.csv
 ```
 
 CSV columns:
 - `input_file`, `size`, `algorithm`, `solved`
-- `runtime_ms`, `peak_kb`
-- `nodes_expanded`, `assignments_tried`
-- `consistency_checks`, `domain_reductions`, `propagation_steps`
-- `error`
+- `runtime_ms` (running time)
+- `peak_kb` (memory usage)
+- `nodes_expanded` (number of inferences/expansions)
 
-## Summarize Benchmarks for Report
-Generate aggregate tables and input profile:
+This is the only CSV file used as source for visualization.
+
+## Summarize Benchmarks (Console Only)
+Print aggregate metrics to terminal without creating extra files:
 
 ```bash
-python util/benchmark.py summary
+python Source/utils/benchmark.py summary
 ```
 
-Generated files:
-- `Outputs/benchmark_summary_by_algorithm.csv`
-- `Outputs/benchmark_summary_by_size_algorithm.csv`
-- `Outputs/input_profile.csv`
-- `Outputs/benchmark_summary.md`
-
-## Generate Mermaid Charts for Report
-Create chart blocks (runtime/memory/nodes vs size):
+## Generate Charts and Table Images
+Create chart images and rendered table images directly from the benchmark CSV:
 
 ```bash
-python util/benchmark.py charts
+python Source/utils/benchmark.py charts
 ```
 
 Generated file:
-- `assets/benchmark/benchmark_charts_mermaid.md`
+- `Source/assets/benchmark/runtime_comparison.png`
+- `Source/assets/benchmark/memory_comparison.png`
+- `Source/assets/benchmark/nodes_comparison.png`
+- `Source/assets/benchmark/runtime_by_case.png`
+- `Source/assets/benchmark/memory_by_case.png`
+- `Source/assets/benchmark/expansions_by_case.png`
+- `Source/assets/benchmark/table_algorithm_summary.png`
+- `Source/assets/benchmark/table_case_by_case.png`
 
 ## Run Full Benchmark Pipeline
 Run benchmark + summary + charts in one command:
 
 ```bash
-python util/benchmark.py all
+python Source/utils/benchmark.py all
 ```
 
 ## Output

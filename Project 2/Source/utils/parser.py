@@ -1,22 +1,8 @@
-"""Input parser for Futoshiki puzzle instances.
-
-Supported input styles:
-- Comma-separated (official assignment format)
-- Whitespace-separated
-
-Constraint encoding:
-- 0 = no constraint
-- 1 = less-than (left < right or top < bottom)
-- -1 = greater-than (left > right or top > bottom)
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Sequence
-
-
 @dataclass(frozen=True)
 class FutoshikiInstance:
     n: int

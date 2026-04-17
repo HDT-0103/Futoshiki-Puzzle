@@ -37,6 +37,14 @@ def _heuristic(domains: Domains) -> int:
     return _unassigned_count(domains)
 
 
+def _astar_metrics(stats: SolverStats) -> dict[str, int]:
+    # Inference work in A* is mostly done by domain propagation/consistency checks.
+    return {
+        "inferences": int(stats.consistency_checks + stats.propagation_steps),
+        "expansions": int(stats.nodes_expanded),
+    }
+
+
 def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None) -> List[List[int]]:
     if stats is None:
         stats = SolverStats()
@@ -50,7 +58,7 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
     if not csp.reduce_domains(initial):
         #raise ValueError("Initial state is inconsistent.")
         logs.append("Initial state is inconsistent.")
-        return None, 0, logs
+        return None, _astar_metrics(stats), logs
 
     initial_sig = _state_signature(csp, initial)
     initial_u = _unassigned_count(initial)
@@ -77,7 +85,7 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
 
         if csp.all_constraints_satisfied(current.domains):
             logs.append(f"Solution found at node #{stats.nodes_expanded}")
-            return csp.to_grid(current.domains), stats.nodes_expanded, logs
+            return csp.to_grid(current.domains), _astar_metrics(stats), logs
 
 
         cell = csp.choose_unassigned_cell(current.domains)
@@ -115,4 +123,4 @@ def solve_astar(instance: FutoshikiInstance, stats: Optional[SolverStats] = None
             counter += 1
             heapq.heappush(frontier, PriorityState(f=g2 + h2, h=h2, g=g2, tie=counter, domains=child))
 
-    return None, stats.nodes_expanded, logs
+    return None, _astar_metrics(stats), logs
