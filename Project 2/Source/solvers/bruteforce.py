@@ -19,20 +19,24 @@ def solve_bf(instance: FutoshikiInstance):
     h = instance.h_constraints
     v = instance.v_constraints
 
-    steps = [0]
+    stats = {"inferences": 0, "expansions": 0}
     logs = []
 
     def check_constraints(g):
         for i in range(n):
             for j in range(n - 1):
+                stats["inferences"] += 1
                 if h[i][j] == 1 and not (g[i][j] < g[i][j + 1]):
                     return False
+                stats["inferences"] += 1
                 if h[i][j] == -1 and not (g[i][j] > g[i][j + 1]):
                     return False
         for i in range(n - 1):
             for j in range(n):
+                stats["inferences"] += 1
                 if v[i][j] == 1 and not (g[i][j] < g[i + 1][j]):
                     return False
+                stats["inferences"] += 1
                 if v[i][j] == -1 and not (g[i][j] > g[i + 1][j]):
                     return False
         return True
@@ -41,6 +45,7 @@ def solve_bf(instance: FutoshikiInstance):
         for j in range(n):
             seen = set()
             for i in range(up_to + 1):
+                stats["inferences"] += 1
                 if g[i][j] in seen:
                     return False
                 seen.add(g[i][j])
@@ -65,7 +70,7 @@ def solve_bf(instance: FutoshikiInstance):
         if row_idx == n:
             return check_constraints(grid)
         for perm in all_perms[row_idx]:
-            steps[0] += 1
+            stats["expansions"] += 1
             grid[row_idx] = perm[:]
             logs.append(f"Try row {row_idx+1}: {perm}")
             if check_cols(grid, row_idx):
@@ -79,4 +84,4 @@ def solve_bf(instance: FutoshikiInstance):
         return False
 
     result_grid = [row[:] for row in grid] if solve_row(0) else None
-    return result_grid, steps[0], logs
+    return result_grid, stats, logs

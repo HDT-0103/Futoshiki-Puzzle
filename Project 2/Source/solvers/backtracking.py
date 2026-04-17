@@ -1,9 +1,4 @@
-﻿"""
-Backtracking solver for Futoshiki.
-Assigns values 1..N to empty cells one by one, backtracks on constraint violation.
-"""
-
-from __future__ import annotations
+﻿from __future__ import annotations
 from Source.utils.parser import FutoshikiInstance
 
 
@@ -18,10 +13,11 @@ def solve_bt(instance: FutoshikiInstance):
     v = instance.v_constraints       # List[List[int]]
 
     empty = [(i, j) for i in range(n) for j in range(n) if grid[i][j] == 0]
-    steps = [0]
+    stats = {"inferences": 0, "expansions": 0}
     logs = []
 
     def valid(r, c, val):
+        stats["inferences"] += 1
         # Row & column uniqueness
         for k in range(n):
             if k != c and grid[r][k] == val:
@@ -58,9 +54,9 @@ def solve_bt(instance: FutoshikiInstance):
     def backtrack(idx):
         if idx == len(empty):
             return True
+        stats["expansions"] += 1
         r, c = empty[idx]
         for val in range(1, n + 1):
-            steps[0] += 1
             logs.append(f"Try ({r+1},{c+1}) = {val}")
             if valid(r, c, val):
                 grid[r][c] = val
@@ -74,4 +70,4 @@ def solve_bt(instance: FutoshikiInstance):
         return False
 
     result_grid = [row[:] for row in grid] if backtrack(0) else None
-    return result_grid, steps[0], logs
+    return result_grid, stats, logs

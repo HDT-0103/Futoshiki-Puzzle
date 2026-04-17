@@ -55,7 +55,12 @@ def clause_status(clause: Clause, assignment: Dict[str, bool]):
 #                break
 #    return assignment
 
-def unit_propagate(clauses: List[Clause], assignment: Dict[str,bool], atom_to_clauses: Dict[str, List[Clause]] = None, steps: List[int] = None) -> Optional[Dict[str,bool]]:
+def unit_propagate(
+    clauses: List[Clause],
+    assignment: Dict[str, bool],
+    atom_to_clauses: Dict[str, List[Clause]] = None,
+    stats: Dict[str, int] = None,
+) -> Optional[Dict[str, bool]]:
     changed_atoms = list(assignment.keys())
     while changed_atoms:
         atom = changed_atoms.pop()
@@ -69,8 +74,8 @@ def unit_propagate(clauses: List[Clause], assignment: Dict[str,bool], atom_to_cl
                 if at not in assignment:
                     assignment[at] = val
                     changed_atoms.append(at)
-                    if steps is not None:
-                        steps[0] += 1
+                    if stats is not None:
+                        stats["inferences"] += 1
                 elif assignment[at] != val: return None
     return assignment
 
@@ -117,12 +122,18 @@ def choose_unassigned_atom(clauses: List[Clause], assignment: Dict[str, bool]) -
 #    res = dpll(clauses, assignment_copy, steps, logs)
 #    return res
 
-def dpll(clauses: List[Clause], assignment: Dict[str,bool], steps: List[int], logs: list, atom_to_clauses: dict = None) -> Optional[Dict[str,bool]]:
-    steps[0] += 1
+def dpll(
+    clauses: List[Clause],
+    assignment: Dict[str, bool],
+    stats: Dict[str, int],
+    logs: list,
+    atom_to_clauses: dict = None,
+) -> Optional[Dict[str, bool]]:
+    stats["expansions"] += 1
     assignment = dict(assignment)
     
     # Lan truyền đơn vị
-    assignment = unit_propagate(clauses, assignment, atom_to_clauses, steps)
+    assignment = unit_propagate(clauses, assignment, atom_to_clauses, stats)
     if assignment is None: return None
     
     # Chọn biến chưa gán
@@ -136,7 +147,7 @@ def dpll(clauses: List[Clause], assignment: Dict[str,bool], steps: List[int], lo
 
     # Branching (truyền đủ steps, logs, index)
     for val in [True, False]:
-        res = dpll(clauses, {**assignment, atom: val}, steps, logs, atom_to_clauses)
+        res = dpll(clauses, {**assignment, atom: val}, stats, logs, atom_to_clauses)
         if res is not None: return res
     return None
 
@@ -158,16 +169,16 @@ def solve_dpll_instance(instance: FutoshikiInstance):
             atom, pos = get_atom(clause[0])
             initial_assignment[atom] = pos
 
-    steps = [0]
+    stats = {"inferences": 0, "expansions": 0}
     logs = []
     logs.append(f"Initial facts: {len(initial_assignment)} atoms assigned")
     logs.append(f"Total clauses: {len(clauses)}")
     
     # 3. Chạy DPLL với initial_assignment thay vì {}
-    model = dpll(clauses, initial_assignment, steps, logs, atom_to_clauses)
+    model = dpll(clauses, initial_assignment, stats, logs, atom_to_clauses)
 
     if model is None:
-        return None, steps[0], logs
+        return None, stats, logs
         
     n = instance.n
     grid=[[0]*n for _ in range(n)]
@@ -179,8 +190,8 @@ def solve_dpll_instance(instance: FutoshikiInstance):
             grid[i-1][j-1] = v
             
     if any(0 in row for row in grid):
-        return None, steps[0], logs
-    return grid, steps[0], logs
+        return None, stats, logs
+    return grid, stats, logs
 
 
 def solve_fc(instance: FutoshikiInstance):
