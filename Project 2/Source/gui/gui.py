@@ -13,14 +13,28 @@ if str(_ROOT) not in sys.path:
 from Source.utils.parser import parse_futoshiki_file, FutoshikiInstance
 
 def _unpack(result_data):
-    """Unpack solver result: supports (grid,), (grid,steps), (grid,steps,logs), or just grid."""
+    """Unpack solver result. Handles:
+    - grid only
+    - (grid, int, logs)
+    - (grid, dict, logs)  ← NEW: dict has 'inferences' and 'expansions'
+    """
     if not isinstance(result_data, tuple):
-        return result_data, 0, []
+        return result_data, {"inferences": 0, "expansions": 0}, []
     if len(result_data) >= 3:
-        return result_data[0], result_data[1], result_data[2]
-    if len(result_data) == 2:
-        return result_data[0], result_data[1], []
-    return result_data[0], 0, []
+        g, metrics, logs = result_data[0], result_data[1], result_data[2]
+    elif len(result_data) == 2:
+        g, metrics, logs = result_data[0], result_data[1], []
+    else:
+        g, metrics, logs = result_data[0], 0, []
+    # Normalize metrics to dict
+    if isinstance(metrics, (int, float)):
+        metrics = {"inferences": int(metrics), "expansions": int(metrics)}
+    elif not isinstance(metrics, dict):
+        metrics = {"inferences": 0, "expansions": 0}
+    # Ensure both keys exist
+    metrics.setdefault("inferences", 0)
+    metrics.setdefault("expansions", 0)
+    return g, metrics, logs
 
 # ═══════════════ SOLVERS ═══════════════
 SOLVERS: dict[str, callable] = {}
@@ -248,7 +262,7 @@ class App:
         # 2-column grid for stats
         for idx, (k, lb) in enumerate([("status","Status"),("algo","Algorithm"),
                                         ("size","Grid"),("time","Time"),
-                                        ("mem","Memory"),("steps","Steps")]):
+                                        ("mem","Memory"),("steps","Inferences")]):
             row = idx
             tk.Label(stats_frame, text=lb, font=(self.F,8), fg=P["lbl"],
                      bg=P["panel"], anchor="w").grid(row=row, column=0, sticky="w", padx=(0,8))
@@ -268,7 +282,7 @@ class App:
 
         self.chart_metric = "time"
         self.tab_btns = {}
-        for metric, label in [("time","Time (s)"), ("mem","Memory (KB)"), ("steps","Steps")]:
+        for metric, label in [("time","Time (s)"), ("mem","Memory (KB)"), ("inferences","Inferences"), ("expansions","Expansions")]:
             b = tk.Button(tab_frame, text=label, font=(self.F,8,"bold"),
                           fg=P["title"], bg=P["tab_off"], relief="flat",
                           cursor="hand2", padx=10, pady=2,
@@ -474,23 +488,31 @@ class App:
         self.sol=g
         self._ss("status","Solved",P["snum"]); self._ss("time",f"{s['time']}s")
         self._ss("mem",f"{s['mem']} KB"); self._draw(); self._out_text(g)
-        self._ss("steps", s['steps'])
+        metrics = s["steps"]  
+        inf_count = metrics.get("inferences", 0)
+        exp_count = metrics.get("expansions", 0)
+        self._ss("steps", f"Inferences: {inf_count}  |  Expansions: {exp_count}")
         self.status.set(f"Solved by {nm} in {s['time']}s")
-        self.cmp[nm] = {"time": s["time"], "mem": s["mem"], "steps": s["steps"], "ok": True}
+        self.cmp[nm] = {
+            "time": s["time"], "mem": s["mem"],
+            "inferences": inf_count, "expansions": exp_count, "ok": True,
+        }
         self.log_data.append({
             "input": self.fvar.get(),
             "grid_size": f"{self.inst.n}x{self.inst.n}",
             "algo": nm,
             "time": s["time"],
             "mem": s["mem"],
-            "steps": s["steps"],
+            "inferences": inf_count,
+            "expansions": exp_count,
         })
         inp = self.fvar.get()
         if inp not in self.all_results:
             self.all_results[inp] = {}
         self.all_results[inp][nm] = {
             "time": s["time"], "mem": s["mem"],
-            "steps": s["steps"], "n": self.inst.n,
+            "inferences": inf_count, "expansions": exp_count,
+            "n": self.inst.n,
         }
         self._draw_chart()
 
@@ -576,7 +598,15 @@ class App:
                     th.start(); th.join(timeout=timeout)
                     if th.is_alive(): res[nm] = {"time": timeout, "mem": 0, "steps": 0, "ok": False, "note": "timeout"}
                     elif box[0] in ("NI", "ERR"): res[nm] = {"time": 0, "mem": 0, "steps": 0, "ok": None}
-                    else: res[nm] = {"time": box[1], "mem": box[2], "steps": box[3], "ok": True}
+                    else:
+                        m = box[3]
+                        if isinstance(m, dict):
+                            inf_c = m.get("inferences", 0)
+                            exp_c = m.get("expansions", 0)
+                        else:
+                            inf_c = int(m) if m else 0
+                            exp_c = inf_c
+                        res[nm] = {"time": box[1], "mem": box[2], "inferences": inf_c, "expansions": exp_c, "ok": True}
                 except: res[nm] = {"time": 0, "mem": 0, "steps": 0, "ok": None}
             self.root.after(0,lambda:self._cmp_done(res))
         threading.Thread(target=run,daemon=True).start()
@@ -600,7 +630,8 @@ class App:
                     "algo": nm,
                     "time": info["time"],
                     "mem": info["mem"],
-                    "steps": info["steps"],
+                    "inferences": info.get("inferences", 0),
+                    "expansions": info.get("expansions", 0),
                 })
         solved=[k for k,v in res.items() if v.get("ok")]
         if solved:
@@ -622,7 +653,7 @@ class App:
                           font=(self.F,9),fill=P["lbl"],justify="center"); return
 
         metric=self.chart_metric
-        unit={"time":"s","mem":"KB","steps":""}[metric]
+        unit={"time":"s","mem":"KB","inferences":"","expansions":"" }.get(metric, "")
         all_nms=list(self.cmp.keys())
         n=len(all_nms)
         if n==0: return
@@ -631,16 +662,33 @@ class App:
         area_w=cw-pad_l-pad_r; area_h=ch-pad_t-pad_b
         group_w=area_w/n; bar_w=max(group_w*0.5,14)
 
-        # Get values
+        # Get values — handle both old format (steps=dict) and new format (inferences/expansions=int)
         vals=[]
         for nm in all_nms:
             info=self.cmp[nm]
-            if info.get("ok"):
-                vals.append(info.get(metric,0))
-            else:
+            if not info.get("ok"):
                 vals.append(None)
+                continue
+            if metric in ("inferences", "expansions"):
+                # Try direct key first
+                v = info.get(metric)
+                if v is None:
+                    # Fallback: old format where steps is a dict
+                    steps = info.get("steps")
+                    if isinstance(steps, dict):
+                        v = steps.get(metric, 0)
+                    elif isinstance(steps, (int, float)):
+                        v = int(steps)
+                    else:
+                        v = 0
+                vals.append(int(v))
+            else:
+                vals.append(info.get(metric, 0))
 
         ok_vals=[v for v in vals if v is not None]
+        if not ok_vals:
+            c.create_text(cw//2,ch//2,text="No data for this metric",
+                          font=(self.F,9),fill=P["lbl"]); return
         mx=max(ok_vals) if ok_vals else 1
         if mx==0: mx=0.001
 
@@ -668,9 +716,7 @@ class App:
                 bh=max((v/mx)*area_h,4)
                 x=x_center-bar_w/2; y=pad_t+area_h-bh
                 c.create_rectangle(x,y,x+bar_w,pad_t+area_h,fill=col,outline="")
-                # Highlight top edge
                 c.create_rectangle(x,y,x+bar_w,y+2,fill="#ffffff",outline="",stipple="gray25")
-                # Value label
                 if metric=="time":
                     vt=f"{v:.4f}{unit}"
                 elif metric=="mem":
@@ -685,7 +731,6 @@ class App:
                 c.create_text(x_center,pad_t+area_h-16,text="N/A",
                               font=(self.F,8),fill=P["lbl"])
 
-            # Name
             c.create_text(x_center,pad_t+area_h+14,text=nm[:14],
                           font=(self.F,7),fill=P["sub"])
 
@@ -726,7 +771,7 @@ class App:
 
         if fp.endswith(".csv"):
             with open(fp, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=["input","grid_size","algo","time","mem","steps"])
+                writer = csv.DictWriter(f, fieldnames=["input","grid_size","algo","time","mem","inferences","expansions"])
                 writer.writeheader()
                 for row in self.log_data:
                     writer.writerow(row)
