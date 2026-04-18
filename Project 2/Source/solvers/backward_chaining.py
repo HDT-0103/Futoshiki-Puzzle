@@ -1,4 +1,4 @@
-﻿"""
+"""
 Backward Chaining (SLD Resolution) solver for Futoshiki.
 
 Prolog-style interpreter:

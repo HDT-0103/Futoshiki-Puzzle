@@ -1,4 +1,4 @@
-﻿from Source.logic.kb import *
+from Source.logic.kb import *
 from typing import List, Tuple, Optional, Dict, Set
 from Source.utils.parser import FutoshikiInstance
 from collections import defaultdict

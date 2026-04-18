@@ -1,11 +1,11 @@
-# Project 2 requirements
-# Recommended Python: 3.9+
-
-# Needed for chart generation in Source/utils/generate_charts.py
-matplotlib>=3.8
-matplotlib
-
-# Notes:
-# - Core solvers/parser use only Python standard library.
-# - tkinter GUI (if used) comes with standard CPython on Windows.
-
+contourpy==1.3.3
+cycler==0.12.1
+fonttools==4.62.1
+kiwisolver==1.5.0
+matplotlib==3.10.8
+numpy==2.4.4
+packaging==26.1
+pillow==12.2.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+six==1.17.0

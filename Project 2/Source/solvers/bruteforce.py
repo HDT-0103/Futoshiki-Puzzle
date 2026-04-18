@@ -1,4 +1,4 @@
-﻿"""
+"""
 Brute-force solver for Futoshiki.
 Tries all row permutations, checks column uniqueness and constraints.
 Slower than backtracking. Used as baseline for performance comparison.
