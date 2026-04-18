@@ -269,11 +269,11 @@ class App:
         self.chart_metric = "time"
         self.tab_btns = {}
         for metric, label in [("time","Time (s)"), ("mem","Memory (KB)"), ("steps","Steps")]:
-            b = tk.Button(tab_frame, text=label, font=(self.F,8,"bold"),
-                          fg=P["title"], bg=P["tab_off"], relief="flat",
-                          cursor="hand2", padx=10, pady=2,
-                          command=lambda m=metric: self._set_metric(m))
-            b.pack(side="left", padx=(0,3))
+            b = tk.Label(tab_frame, text=label, font=(self.F,8,"bold"),
+                         fg=P["title"], bg=P["tab_off"], cursor="hand2",
+                         padx=10, pady=3)
+            b.bind("<Button-1>", lambda _e, m=metric: self._set_metric(m))
+            b.pack(side="left", padx=(0,3), pady=0)
             self.tab_btns[metric] = b
         self._update_tabs()
 
@@ -295,15 +295,26 @@ class App:
                  bg=P["panel"], anchor="w").pack(fill="x", padx=14, pady=(8,2))
     def _sep(self, p):
         tk.Frame(p, bg=P["brd"], height=1).pack(fill="x", padx=14, pady=6)
+
+    def _label_btn(self, p, t, cmd, bg, fg, hover_bg=None, *, font=None, padx=12, pady=2, ipady=5):
+        # tk.Button background can be ignored on some platforms/themes (commonly macOS aqua),
+        # making buttons look "transparent". Label respects bg reliably.
+        if hover_bg is None:
+            hover_bg = bg
+        if font is None:
+            font = (self.F, 9, "bold")
+        b = tk.Label(p, text=t, font=font, fg=fg, bg=bg, cursor="hand2", pady=ipady)
+        b.pack(fill="x", padx=padx, pady=pady)
+        b.bind("<Button-1>", lambda _e: cmd())
+        b.bind("<Enter>", lambda _e: b.config(bg=hover_bg))
+        b.bind("<Leave>", lambda _e: b.config(bg=bg))
+        return b
+
     def _btn(self, p, t, cmd, col):
-        b = tk.Button(p, text=t, command=cmd, font=(self.F,9,"bold"),
-                      fg="#fff", bg=col, activebackground=col,
-                      activeforeground="#fff", relief="flat", cursor="hand2", pady=4)
-        b.pack(fill="x", padx=12, pady=2)
         h={P["accent"]:P["accent_h"],P["green"]:P["green_h"],
            P["orange"]:P["orange_h"],P["red"]:P["red_h"],
            P["cyan"]:P["cyan_h"]}.get(col,col)
-        b.bind("<Enter>",lambda _:b.config(bg=h)); b.bind("<Leave>",lambda _:b.config(bg=col))
+        self._label_btn(p, t, cmd, col, "#fff", h)
 
     def _rebuild_radios(self):
         for w in self._rf.winfo_children(): w.destroy()
