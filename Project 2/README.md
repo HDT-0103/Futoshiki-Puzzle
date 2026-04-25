@@ -23,15 +23,56 @@ Constraint values:
 - `-1`: greater-than (`>`)
 
 Both comma-separated and whitespace-separated formats are supported.
+## Setup
 
-## Run
-From the project root:
+### 1) Clone repo
+```bash
+git clone https://github.com/HDT-0103/Futoshiki-Puzzle.git
+cd Futoshiki-Puzzle
+```
 
+### 2) Create and activate a virtual environment (venv)
+
+**Windows (PowerShell):**
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Windows (CMD):**
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate.bat
+```
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+> If PowerShell blocks script execution on Windows, run:
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+> ```
+
+### 3) Install dependencies from requirements.txt
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4) Run the project
+From the project root, run:
 ```bash
 python main.py
 ```
-
 This opens the GUI. Choose puzzle file and algorithm inside the interface.
+
+### 5) Deactivate the virtual environment (when needed)
+```bash
+deactivate
+```
 
 ## Generate Additional Inputs
 Generate `input-02.txt` to `input-10.txt` (sizes: 4x4, 5x5, 6x6, 7x7, 9x9):
